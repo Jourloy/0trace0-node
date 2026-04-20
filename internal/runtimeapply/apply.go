@@ -21,6 +21,7 @@ import (
 const (
 	xrayBinaryPath    = "/usr/local/bin/xray"
 	singboxBinaryPath = "/usr/local/bin/sing-box"
+	mtproxyBinaryPath = "/usr/local/bin/mtproto-proxy"
 )
 
 type Config struct {
@@ -30,17 +31,22 @@ type Config struct {
 }
 
 type Result struct {
-	Revision      string
-	AssignedPorts map[string]int
-	Warnings      []string
-	Health        map[string]any
+	Revision        string
+	AssignedPorts   map[string]int
+	Warnings        []string
+	Health          map[string]any
+	MTProxyInbounds map[string]controlapi.MTProxyInboundHealth
 }
 
 type Supervisor struct {
-	cfg     Config
-	logger  *slog.Logger
-	mu      sync.Mutex
-	process map[string]*managedProcess
+	cfg               Config
+	logger            *slog.Logger
+	mu                sync.Mutex
+	process           map[string]*managedProcess
+	mtproxyStatsPorts map[string]int
+	mtproxyHealth     map[string]controlapi.MTProxyInboundHealth
+	mtproxyPrevStats  map[string]mtproxyCounters
+	mtproxyPlans      map[string]mtproxyProcessPlan
 }
 
 type managedProcess struct {
@@ -75,6 +81,10 @@ func NewSupervisor(cfg Config, logger *slog.Logger) *Supervisor {
 				configPath: filepath.Join(cfg.StateDir, "rendered", "singbox.json"),
 			},
 		},
+		mtproxyStatsPorts: map[string]int{},
+		mtproxyHealth:     map[string]controlapi.MTProxyInboundHealth{},
+		mtproxyPrevStats:  map[string]mtproxyCounters{},
+		mtproxyPlans:      map[string]mtproxyProcessPlan{},
 	}
 }
 
@@ -101,6 +111,7 @@ func (s *Supervisor) ApplyBundle(bundle *controlapi.ConfigBundle, previousPorts 
 		"singbox_required":  singboxRequired,
 		"xray_running":      false,
 		"singbox_running":   false,
+		"mtproxy_running":   0,
 		"xrayConfigPath":    xrayPath,
 		"singboxConfigPath": singboxPath,
 		"config_applied":    true,
@@ -144,6 +155,17 @@ func (s *Supervisor) ApplyBundle(bundle *controlapi.ConfigBundle, previousPorts 
 		return result, fmt.Errorf("sing-box start failed: %w", singboxErr)
 	}
 	result.Health["singbox_running"] = singboxRunning
+
+	mtproxyWarnings, mtproxyErr := s.reconcileMTProxyLocked(*bundle, result.AssignedPorts)
+	result.Warnings = append(result.Warnings, mtproxyWarnings...)
+	result.MTProxyInbounds = s.copyMTProxyHealthLocked()
+	result.Health["mtproxy_running"] = len(result.MTProxyInbounds)
+	result.Health["mtproxy_inbounds"] = result.MTProxyInbounds
+	result.Health["mtproxy_degraded"] = anyMTProxyDegraded(result.MTProxyInbounds)
+	if mtproxyErr != nil {
+		result.Health["last_apply_error"] = mtproxyErr.Error()
+		return result, fmt.Errorf("mtproxy start failed: %w", mtproxyErr)
+	}
 
 	return result, nil
 }

@@ -5,7 +5,7 @@ Standalone node runtime for 0trace0.
 ## Contents
 
 - `cmd/node-agent`: agent entrypoint
-- `internal/nodeagent`: sync loop and control-plane client
+- `internal/nodeagent`: sync loop and panel client
 - `internal/runtime`: Xray and sing-box renderers
 - `internal/runtimeapply`: config validation and process supervision
 - `internal/controlapi`: copied wire types shared with the backend API contract

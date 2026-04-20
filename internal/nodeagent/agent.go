@@ -139,6 +139,13 @@ func (a *Agent) syncOnce(ctx context.Context) error {
 		a.logger.Warn("failed to persist state", "error", err)
 	}
 
+	mtproxyEvents, mtproxyInbounds := a.supervisor.CollectMTProxyStats(a.state.NodeID)
+	result.MTProxyInbounds = mtproxyInbounds
+	result.Health["mtproxy_inbounds"] = mtproxyInbounds
+	result.Health["mtproxy_running"] = len(mtproxyInbounds)
+	result.Health["mtproxy_degraded"] = mtproxyHealthDegraded(mtproxyInbounds)
+	result.Status = runtimeStatus(result.Health)
+
 	events := []controlapi.SessionEvent{{
 		EventType: "config_applied",
 		NodeID:    a.state.NodeID,
@@ -150,6 +157,7 @@ func (a *Agent) syncOnce(ctx context.Context) error {
 		},
 		CreatedAt: time.Now().UTC(),
 	}}
+	events = append(events, mtproxyEvents...)
 	if err := a.sendTelemetry(ctx, events); err != nil {
 		a.logger.Warn("failed to send telemetry", "error", err)
 	}
@@ -195,6 +203,7 @@ func (a *Agent) sendHeartbeat(ctx context.Context, result applyResult) error {
 			"xrayConfigPath":    filepath.Join(a.cfg.StateDir, "rendered", "xray.json"),
 			"singboxConfigPath": filepath.Join(a.cfg.StateDir, "rendered", "singbox.json"),
 		}),
+		MTProxyInbounds: result.MTProxyInbounds,
 	}
 	var resp map[string]any
 	return a.doJSON(ctx, http.MethodPost, "/api/v1/agent/heartbeat", payload, &resp)
@@ -245,7 +254,7 @@ func (a *Agent) doJSON(ctx context.Context, method, path string, payload any, ds
 }
 
 func (a *Agent) endpoint(path string) string {
-	return strings.TrimRight(a.cfg.ControlPlaneURL, "/") + path
+	return strings.TrimRight(a.cfg.PanelURL, "/") + path
 }
 
 func (a *Agent) statePath() string {
@@ -301,8 +310,18 @@ func runtimeStatus(health map[string]any) string {
 	singboxRunning, _ := health["singbox_running"].(bool)
 	certPending, _ := health["cert_pending"].(bool)
 	hostUnresolved, _ := health["host_unresolved"].(bool)
-	if (xrayRequired && !xrayRunning) || (singboxRequired && !singboxRunning) || certPending || hostUnresolved {
+	mtproxyDegraded, _ := health["mtproxy_degraded"].(bool)
+	if (xrayRequired && !xrayRunning) || (singboxRequired && !singboxRunning) || certPending || hostUnresolved || mtproxyDegraded {
 		return "degraded"
 	}
 	return "online"
+}
+
+func mtproxyHealthDegraded(values map[string]controlapi.MTProxyInboundHealth) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value.Status) != "running" {
+			return true
+		}
+	}
+	return false
 }

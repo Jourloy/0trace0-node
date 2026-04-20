@@ -5,11 +5,12 @@ import (
 )
 
 type applyResult struct {
-	Revision      string
-	AssignedPorts map[string]int
-	Warnings      []string
-	Health        map[string]any
-	Status        string
+	Revision        string
+	AssignedPorts   map[string]int
+	Warnings        []string
+	Health          map[string]any
+	MTProxyInbounds map[string]controlapi.MTProxyInboundHealth
+	Status          string
 }
 
 func (a *Agent) applyBundle(bundle *controlapi.ConfigBundle) (applyResult, error) {
@@ -18,10 +19,11 @@ func (a *Agent) applyBundle(bundle *controlapi.ConfigBundle) (applyResult, error
 		return applyResult{}, err
 	}
 	return applyResult{
-		Revision:      result.Revision,
-		AssignedPorts: result.AssignedPorts,
-		Warnings:      result.Warnings,
-		Health:        result.Health,
-		Status:        runtimeStatus(result.Health),
+		Revision:        result.Revision,
+		AssignedPorts:   result.AssignedPorts,
+		Warnings:        result.Warnings,
+		Health:          result.Health,
+		MTProxyInbounds: result.MTProxyInbounds,
+		Status:          runtimeStatus(result.Health),
 	}, nil
 }

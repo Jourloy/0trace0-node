@@ -26,7 +26,10 @@ func RenderXray(bundle controlapi.ConfigBundle, assignedPorts map[string]int) ([
 			warnings = append(warnings, fmt.Sprintf("xray skipped bridge inbound %s; rendered in sing-box instead", inbound.Name))
 			continue
 		}
-		if protocol == "hysteria2" || protocol == "wireguard" {
+		if protocol == "hysteria2" || protocol == "wireguard" || protocol == "mtproxy" {
+			if protocol == "mtproxy" {
+				warnings = append(warnings, fmt.Sprintf("xray skipped inbound %s (%s); rendered in dedicated mtproxy runtime", inbound.Name, protocol))
+			}
 			continue
 		}
 		port := assignedPorts[inbound.ID]
@@ -234,6 +237,8 @@ func RenderSingbox(bundle controlapi.ConfigBundle, assignedPorts map[string]int)
 			})
 		case "trojan", "vless", "http":
 			warnings = append(warnings, fmt.Sprintf("sing-box skipped inbound %s (%s); rendered in xray", inbound.Name, protocol))
+		case "mtproxy":
+			warnings = append(warnings, fmt.Sprintf("sing-box skipped inbound %s (%s); rendered in dedicated mtproxy runtime", inbound.Name, protocol))
 		default:
 			warnings = append(warnings, fmt.Sprintf("sing-box skipped unsupported inbound %s (%s)", inbound.Name, protocol))
 		}

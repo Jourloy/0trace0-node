@@ -19,8 +19,20 @@ FROM alpine:3.21 AS runtime-binaries
 ARG TARGETARCH=amd64
 ARG XRAY_VERSION=v26.2.6
 ARG SINGBOX_VERSION=v1.12.25
+ARG MTPROXY_REF=cafc3380a81671579ce366d0594b9a8e450827e9
 
-RUN apk add --no-cache ca-certificates curl tar unzip
+RUN apk add --no-cache \
+    ca-certificates \
+    curl \
+    git \
+    make \
+    musl-dev \
+    gcc \
+    linux-headers \
+    openssl-dev \
+    zlib-dev \
+    tar \
+    unzip
 
 RUN set -eux; \
     case "${TARGETARCH}" in \
@@ -49,17 +61,23 @@ RUN set -eux; \
     SINGBOX_DIR="$(find "${TMP_DIR}" -maxdepth 1 -type d -name 'sing-box-*' | head -n 1)"; \
     test -n "${SINGBOX_DIR}"; \
     install -m 0755 "${SINGBOX_DIR}/sing-box" /out/bin/sing-box; \
+    git clone https://github.com/TelegramMessenger/MTProxy.git "${TMP_DIR}/MTProxy"; \
+    cd "${TMP_DIR}/MTProxy"; \
+    git checkout "${MTPROXY_REF}"; \
+    make; \
+    install -m 0755 "${TMP_DIR}/MTProxy/objs/bin/mtproto-proxy" /out/bin/mtproto-proxy; \
     rm -rf "${TMP_DIR}"
 
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata openssl zlib
 
 WORKDIR /app
 
 COPY --from=builder /out/node-agent /usr/local/bin/node-agent
 COPY --from=runtime-binaries /out/bin/xray /usr/local/bin/xray
 COPY --from=runtime-binaries /out/bin/sing-box /usr/local/bin/sing-box
+COPY --from=runtime-binaries /out/bin/mtproto-proxy /usr/local/bin/mtproto-proxy
 COPY --from=runtime-binaries /out/share/xray /usr/local/share/xray
 
 ENV XRAY_LOCATION_ASSET=/usr/local/share/xray

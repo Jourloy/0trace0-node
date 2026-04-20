@@ -11,36 +11,36 @@ import (
 )
 
 type Config struct {
-	ControlPlaneURL string
-	Token           string
-	NodeID          string
-	NodeName        string
-	PublicAddress   string
-	StateDir        string
-	SyncInterval    time.Duration
-	HTTPTimeout     time.Duration
-	PortMin         int
-	PortMax         int
-	MTLSCertFile    string
-	MTLSKeyFile     string
-	MTLSCAFile      string
+	PanelURL      string
+	Token         string
+	NodeID        string
+	NodeName      string
+	PublicAddress string
+	StateDir      string
+	SyncInterval  time.Duration
+	HTTPTimeout   time.Duration
+	PortMin       int
+	PortMax       int
+	MTLSCertFile  string
+	MTLSKeyFile   string
+	MTLSCAFile    string
 }
 
 func LoadConfig() Config {
 	return Config{
-		ControlPlaneURL: getEnv("API_URL", "http://localhost:8080"),
-		Token:           getEnv("NODE_TOKEN", ""),
-		NodeID:          getEnv("NODE_ID", ""),
-		NodeName:        getEnv("NODE_NAME", "node-agent"),
-		PublicAddress:   getEnv("PUBLIC_ADDRESS", ""),
-		StateDir:        getEnv("STATE_DIR", "./data/node-agent"),
-		SyncInterval:    parseDuration("SYNC_INTERVAL", 15*time.Second),
-		HTTPTimeout:     parseDuration("HTTP_TIMEOUT", 15*time.Second),
-		PortMin:         parseInt("PORT_MIN", 20000),
-		PortMax:         parseInt("PORT_MAX", 45000),
-		MTLSCertFile:    getEnv("MTLS_CERT_FILE", ""),
-		MTLSKeyFile:     getEnv("MTLS_KEY_FILE", ""),
-		MTLSCAFile:      getEnv("MTLS_CA_FILE", ""),
+		PanelURL:      getEnv("API_URL", "http://localhost:8080"),
+		Token:         getEnv("NODE_TOKEN", ""),
+		NodeID:        getEnv("NODE_ID", ""),
+		NodeName:      getEnv("NODE_NAME", "node-agent"),
+		PublicAddress: getEnv("PUBLIC_ADDRESS", ""),
+		StateDir:      getEnv("STATE_DIR", "./data/node-agent"),
+		SyncInterval:  parseDuration("SYNC_INTERVAL", 15*time.Second),
+		HTTPTimeout:   parseDuration("HTTP_TIMEOUT", 15*time.Second),
+		PortMin:       parseInt("PORT_MIN", 20000),
+		PortMax:       parseInt("PORT_MAX", 45000),
+		MTLSCertFile:  getEnv("MTLS_CERT_FILE", ""),
+		MTLSKeyFile:   getEnv("MTLS_KEY_FILE", ""),
+		MTLSCAFile:    getEnv("MTLS_CA_FILE", ""),
 	}
 }
 

@@ -180,16 +180,23 @@ type ConfigBundle struct {
 }
 
 type ClientArtifact struct {
-	ClientID      string  `json:"clientId"`
-	DisplayName   string  `json:"displayName"`
-	DownloadName  string  `json:"downloadName"`
-	ArtifactText  string  `json:"artifactText"`
-	QRText        string  `json:"qrText"`
-	Protocol      *string `json:"protocol,omitempty"`
-	CurrentStatus string  `json:"currentStatus"`
-	StatusReason  string  `json:"statusReason,omitempty"`
-	ResolvedHost  string  `json:"resolvedHost,omitempty"`
-	ResolvedPort  int     `json:"resolvedPort,omitempty"`
+	ClientID      string                      `json:"clientId"`
+	DisplayName   string                      `json:"displayName"`
+	DownloadName  string                      `json:"downloadName"`
+	ArtifactText  string                      `json:"artifactText"`
+	QRText        string                      `json:"qrText"`
+	Alternatives  []ClientArtifactAlternative `json:"alternatives,omitempty"`
+	Protocol      *string                     `json:"protocol,omitempty"`
+	CurrentStatus string                      `json:"currentStatus"`
+	StatusReason  string                      `json:"statusReason,omitempty"`
+	ResolvedHost  string                      `json:"resolvedHost,omitempty"`
+	ResolvedPort  int                         `json:"resolvedPort,omitempty"`
+}
+
+type ClientArtifactAlternative struct {
+	Label        string `json:"label"`
+	ArtifactText string `json:"artifactText"`
+	QRText       string `json:"qrText"`
 }
 
 type NodeSummary struct {
@@ -238,6 +245,14 @@ type InboundEgressChain struct {
 	TerminalOutboundTag string   `json:"terminalOutboundTag"`
 }
 
+type InboundMTProxySettings struct {
+	TransportMode string   `json:"transportMode"`
+	ProxyTag      string   `json:"proxyTag"`
+	TLSDomains    []string `json:"tlsDomains"`
+	Workers       int      `json:"workers"`
+	PublicAddress string   `json:"publicAddress"`
+}
+
 type InboundRecord struct {
 	ID                 string                 `json:"id"`
 	Name               string                 `json:"name"`
@@ -261,6 +276,7 @@ type InboundRecord struct {
 	TLSSettings        InboundTLSSettings     `json:"tlsSettings"`
 	RealitySettings    InboundRealitySettings `json:"realitySettings"`
 	EgressChain        InboundEgressChain     `json:"egressChain"`
+	MTProxySettings    InboundMTProxySettings `json:"mtproxySettings"`
 	ResolvedPublicHost string                 `json:"resolvedPublicHost"`
 	CertificateID      string                 `json:"certificateId"`
 	CertificateStatus  string                 `json:"certificateStatus"`
@@ -289,6 +305,7 @@ type InboundUpsertRequest struct {
 	TLSSettings     *InboundTLSSettings     `json:"tlsSettings,omitempty"`
 	RealitySettings *InboundRealitySettings `json:"realitySettings,omitempty"`
 	EgressChain     *InboundEgressChain     `json:"egressChain,omitempty"`
+	MTProxySettings *InboundMTProxySettings `json:"mtproxySettings,omitempty"`
 }
 
 type InboundPresetRequest struct {
@@ -372,6 +389,17 @@ type RoutingPolicyUpsertRequest struct {
 	OutboundTag    string   `json:"outboundTag"`
 }
 
+type TelegramRoutingPresetRequest struct {
+	OutboundTag string   `json:"outboundTag"`
+	Name        string   `json:"name,omitempty"`
+	InboundTags []string `json:"inboundTags,omitempty"`
+}
+
+type TelegramRoutingPresetResponse struct {
+	PresetVersion string                     `json:"presetVersion"`
+	Payload       RoutingPolicyUpsertRequest `json:"payload"`
+}
+
 type CertificateRecord struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -418,6 +446,9 @@ type InboundClientRecord struct {
 	Addresses           []string  `json:"addresses"`
 	AllowedIPs          []string  `json:"allowedIps"`
 	PersistentKeepalive string    `json:"persistentKeepalive"`
+	Secret              string    `json:"secret"`
+	SecretVariant       string    `json:"secretVariant"`
+	TLSDomain           string    `json:"tlsDomain"`
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
@@ -433,6 +464,58 @@ type InboundClientUpsertRequest struct {
 	Addresses           []string `json:"addresses,omitempty"`
 	AllowedIPs          []string `json:"allowedIps,omitempty"`
 	PersistentKeepalive string   `json:"persistentKeepalive,omitempty"`
+	Secret              string   `json:"secret,omitempty"`
+	SecretVariant       string   `json:"secretVariant,omitempty"`
+	TLSDomain           string   `json:"tlsDomain,omitempty"`
+}
+
+type MTProxyInboundHealth struct {
+	Status                string    `json:"status"`
+	LastError             string    `json:"lastError,omitempty"`
+	TransportMode         string    `json:"transportMode"`
+	ProxyTag              string    `json:"proxyTag"`
+	TLSDomains            []string  `json:"tlsDomains"`
+	Workers               int       `json:"workers"`
+	ActiveRPCs            int64     `json:"activeRpcs"`
+	TotForwardedQueries   int64     `json:"totForwardedQueries"`
+	TotForwardedResponses int64     `json:"totForwardedResponses"`
+	MTProtoProxyErrors    int64     `json:"mtprotoProxyErrors"`
+	HTTPConnections       int64     `json:"httpConnections"`
+	ExtConnections        int64     `json:"extConnections"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+}
+
+type MTProxyStatsSnapshot struct {
+	InboundID             string    `json:"inboundId"`
+	Status                string    `json:"status"`
+	LastError             string    `json:"lastError,omitempty"`
+	TransportMode         string    `json:"transportMode"`
+	ProxyTag              string    `json:"proxyTag"`
+	TLSDomains            []string  `json:"tlsDomains"`
+	Workers               int       `json:"workers"`
+	PublicAddress         string    `json:"publicAddress"`
+	ActiveRPCs            int64     `json:"activeRpcs"`
+	TotForwardedQueries   int64     `json:"totForwardedQueries"`
+	TotForwardedResponses int64     `json:"totForwardedResponses"`
+	MTProtoProxyErrors    int64     `json:"mtprotoProxyErrors"`
+	HTTPConnections       int64     `json:"httpConnections"`
+	ExtConnections        int64     `json:"extConnections"`
+	LastTelemetryAt       time.Time `json:"lastTelemetryAt"`
+}
+
+type MTProxyStatsPoint struct {
+	CreatedAt             time.Time `json:"createdAt"`
+	ActiveRPCs            int64     `json:"activeRpcs"`
+	TotForwardedQueries   int64     `json:"totForwardedQueries"`
+	TotForwardedResponses int64     `json:"totForwardedResponses"`
+	MTProtoProxyErrors    int64     `json:"mtprotoProxyErrors"`
+	HTTPConnections       int64     `json:"httpConnections"`
+	ExtConnections        int64     `json:"extConnections"`
+}
+
+type MTProxyStatsResponse struct {
+	Snapshot MTProxyStatsSnapshot `json:"snapshot"`
+	History  []MTProxyStatsPoint  `json:"history"`
 }
 
 type LoginRequest struct {
@@ -468,14 +551,15 @@ type AgentRegisterResponse struct {
 }
 
 type AgentHeartbeatRequest struct {
-	NodeID          string         `json:"nodeId"`
-	NodeName        string         `json:"nodeName"`
-	PublicAddress   string         `json:"publicAddress"`
-	Version         string         `json:"version"`
-	Status          string         `json:"status,omitempty"`
-	CurrentRevision string         `json:"currentRevision"`
-	AssignedPorts   map[string]int `json:"assignedPorts"`
-	Health          map[string]any `json:"health,omitempty"`
+	NodeID          string                          `json:"nodeId"`
+	NodeName        string                          `json:"nodeName"`
+	PublicAddress   string                          `json:"publicAddress"`
+	Version         string                          `json:"version"`
+	Status          string                          `json:"status,omitempty"`
+	CurrentRevision string                          `json:"currentRevision"`
+	AssignedPorts   map[string]int                  `json:"assignedPorts"`
+	Health          map[string]any                  `json:"health,omitempty"`
+	MTProxyInbounds map[string]MTProxyInboundHealth `json:"mtproxyInbounds,omitempty"`
 }
 
 type AgentTelemetryRequest struct {

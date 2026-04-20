@@ -6,7 +6,7 @@ import (
 )
 
 func TestLoadConfigUsesShortEnvNames(t *testing.T) {
-	t.Setenv("API_URL", "https://control-plane.example.com")
+	t.Setenv("API_URL", "https://0trace0-panel.example.com")
 	t.Setenv("NODE_TOKEN", "token-123")
 	t.Setenv("NODE_ID", "node-id-1")
 	t.Setenv("NODE_NAME", "node-1")
@@ -22,8 +22,8 @@ func TestLoadConfigUsesShortEnvNames(t *testing.T) {
 
 	cfg := LoadConfig()
 
-	if cfg.ControlPlaneURL != "https://control-plane.example.com" {
-		t.Fatalf("expected API_URL to populate ControlPlaneURL, got %q", cfg.ControlPlaneURL)
+	if cfg.PanelURL != "https://0trace0-panel.example.com" {
+		t.Fatalf("expected API_URL to populate PanelURL, got %q", cfg.PanelURL)
 	}
 	if cfg.Token != "token-123" {
 		t.Fatalf("expected NODE_TOKEN to populate Token, got %q", cfg.Token)
@@ -64,8 +64,8 @@ func TestLoadConfigUsesShortEnvNames(t *testing.T) {
 }
 
 func TestLoadConfigIgnoresLegacyPrefixedEnvNames(t *testing.T) {
-	t.Setenv("ZEROTRACEZERO_CONTROL_PLANE_URL", "https://legacy-control-plane.example.com")
-	t.Setenv("ZEROTRACEZERO_AGENT_CONTROL_PLANE_URL", "https://legacy-agent-control-plane.example.com")
+	t.Setenv("ZEROTRACEZERO_CONTROL_PLANE_URL", "https://legacy-0trace0-panel.example.com")
+	t.Setenv("ZEROTRACEZERO_AGENT_CONTROL_PLANE_URL", "https://legacy-agent-0trace0-panel.example.com")
 	t.Setenv("ZEROTRACEZERO_NODE_TOKEN", "legacy-token")
 	t.Setenv("ZEROTRACEZERO_AGENT_TOKEN", "legacy-agent-token")
 	t.Setenv("ZEROTRACEZERO_AGENT_NODE_ID", "legacy-node-id")
@@ -84,8 +84,8 @@ func TestLoadConfigIgnoresLegacyPrefixedEnvNames(t *testing.T) {
 
 	cfg := LoadConfig()
 
-	if cfg.ControlPlaneURL != "http://localhost:8080" {
-		t.Fatalf("expected legacy control plane env vars to be ignored, got %q", cfg.ControlPlaneURL)
+	if cfg.PanelURL != "http://localhost:8080" {
+		t.Fatalf("expected legacy panel env vars to be ignored, got %q", cfg.PanelURL)
 	}
 	if cfg.Token != "" {
 		t.Fatalf("expected legacy token env vars to be ignored, got %q", cfg.Token)
