@@ -59,7 +59,7 @@ Legacy `ZEROTRACEZERO_*` and `ZEROTRACEZERO_AGENT_*` env names are no longer sup
 
 ```bash
 go test ./...
-docker build -t 0trace0-node . && docker run --rm \
+docker build --build-arg TARGETARCH=amd64 -t 0trace0-node . && docker run --rm \
   -e API_URL=https://api.example.com \
   -e NODE_TOKEN=replace-me \
   -v zerotracezero-node:/var/lib/zerotracezero-node \
@@ -68,10 +68,12 @@ docker build -t 0trace0-node . && docker run --rm \
 
 ## Docker
 
-The supported runtime flow is Docker-only. `xray` and `sing-box` are installed into the image by the `Dockerfile`, so no runtime env overrides are required.
+The supported runtime flow is Docker-only. `xray`, `sing-box`, and `mtproto-proxy` are installed into the image by the `Dockerfile`, so no runtime env overrides are required.
+
+The Docker image is currently supported only on `linux/amd64`. Builds for `arm64` and other architectures fail intentionally until `MTProxy` has a supported non-`amd64` path.
 
 ```bash
-docker build -t 0trace0-node . && docker run --rm \
+docker build --build-arg TARGETARCH=amd64 -t 0trace0-node . && docker run --rm \
   -e API_URL=https://api.example.com \
   -e NODE_TOKEN=replace-me \
   -v zerotracezero-node:/var/lib/zerotracezero-node \

@@ -14,41 +14,36 @@ COPY internal ./internal
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /out/node-agent ./cmd/node-agent
 
-FROM alpine:3.21 AS runtime-binaries
+FROM debian:bookworm-slim AS runtime-binaries
 
 ARG TARGETARCH=amd64
 ARG XRAY_VERSION=v26.2.6
 ARG SINGBOX_VERSION=v1.12.25
 ARG MTPROXY_REF=cafc3380a81671579ce366d0594b9a8e450827e9
 
-RUN apk add --no-cache \
-    ca-certificates \
-    curl \
-    git \
-    make \
-    musl-dev \
-    gcc \
-    linux-headers \
-    openssl-dev \
-    zlib-dev \
-    tar \
-    unzip
-
-RUN set -eux; \
-    case "${TARGETARCH}" in \
-      amd64) \
-        XRAY_ASSET="Xray-linux-64.zip"; \
-        SINGBOX_ASSET="sing-box-${SINGBOX_VERSION#v}-linux-amd64.tar.gz"; \
-        ;; \
-      arm64) \
-        XRAY_ASSET="Xray-linux-arm64-v8a.zip"; \
-        SINGBOX_ASSET="sing-box-${SINGBOX_VERSION#v}-linux-arm64.tar.gz"; \
-        ;; \
+RUN case "${TARGETARCH}" in \
+      amd64) ;; \
       *) \
-        echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; \
+        echo "unsupported TARGETARCH: ${TARGETARCH}; MTProxy is currently supported only on amd64" >&2; \
         exit 1; \
         ;; \
-    esac; \
+    esac
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gcc \
+    git \
+    libc6-dev \
+    make \
+    libssl-dev \
+    tar \
+    unzip \
+    zlib1g-dev && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    XRAY_ASSET="Xray-linux-64.zip"; \
+    SINGBOX_ASSET="sing-box-${SINGBOX_VERSION#v}-linux-amd64.tar.gz"; \
     TMP_DIR="$(mktemp -d)"; \
     mkdir -p /out/bin /out/share/xray; \
     curl -fsSL -o "${TMP_DIR}/xray.zip" "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/${XRAY_ASSET}"; \
@@ -68,9 +63,13 @@ RUN set -eux; \
     install -m 0755 "${TMP_DIR}/MTProxy/objs/bin/mtproto-proxy" /out/bin/mtproto-proxy; \
     rm -rf "${TMP_DIR}"
 
-FROM alpine:3.21
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache ca-certificates tzdata openssl zlib
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    openssl \
+    tzdata \
+    zlib1g && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
