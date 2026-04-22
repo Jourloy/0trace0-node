@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jourloy/0trace0-node/internal/controlapi"
+	"github.com/jourloy/0trace0-node/internal/runtime"
 )
 
 const (
@@ -181,15 +181,12 @@ func (s *Supervisor) buildMTProxyPlansLocked(bundle controlapi.ConfigBundle, ass
 			continue
 		}
 		publicPort := assignedPorts[inbound.ID]
-		if inbound.Port != nil && *inbound.Port > 0 {
-			publicPort = *inbound.Port
-		}
 		if publicPort <= 0 {
 			return nil, warnings, fmt.Errorf("mtproxy inbound %s has no assigned public port", inbound.Name)
 		}
 		statsPort := s.mtproxyStatsPorts[inbound.ID]
 		if statsPort <= 0 {
-			allocated, allocErr := pickMTProxyStatsPort(usedPorts, s.cfg.PortMin, s.cfg.PortMax)
+			allocated, allocErr := runtime.AssignStatsPort(bundle.NodeID+":"+inbound.ID, usedPorts)
 			if allocErr != nil {
 				return nil, warnings, allocErr
 			}
@@ -478,36 +475,6 @@ func isMTProxyHex(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
-}
-
-func pickMTProxyStatsPort(used map[int]struct{}, minPort, maxPort int) (int, error) {
-	start := maxPort + 1
-	if start < 30000 {
-		start = 30000
-	}
-	end := start + 4096
-	if minPort > 0 && end < minPort {
-		end = minPort + 4096
-	}
-	for port := start; port < end; port++ {
-		if _, ok := used[port]; ok {
-			continue
-		}
-		if !portAvailableLocal(port) {
-			continue
-		}
-		return port, nil
-	}
-	return 0, fmt.Errorf("failed to allocate mtproxy stats port in %d-%d", start, end)
-}
-
-func portAvailableLocal(port int) bool {
-	tcp, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	_ = tcp.Close()
-	return true
 }
 
 func writeMTProxyManifest(plan mtproxyProcessPlan) error {

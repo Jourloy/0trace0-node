@@ -1,11 +1,11 @@
-# 0trace0 Node Agent
+# 0trace0 Node Service
 
 Standalone node runtime for 0trace0.
 
 ## Contents
 
-- `cmd/node-agent`: agent entrypoint
-- `internal/nodeagent`: sync loop and panel client
+- `cmd/node-agent`: HTTP service entrypoint
+- `internal/nodeagent`: node API, local state, and event journal
 - `internal/runtime`: Xray and sing-box renderers
 - `internal/runtimeapply`: config validation and process supervision
 - `internal/controlapi`: copied wire types shared with the backend API contract
@@ -13,55 +13,28 @@ Standalone node runtime for 0trace0.
 
 ## Environment
 
-Node agent env uses short backend-style names:
+Node service env uses local service names:
 
-- `API_URL`
-- `NODE_TOKEN`
-- `NODE_ID`
+- `NODE_HTTP_ADDR`
+- `NODE_API_TOKEN`
 - `NODE_NAME`
 - `PUBLIC_ADDRESS`
 - `STATE_DIR`
-- `SYNC_INTERVAL`
-- `HTTP_TIMEOUT`
-- `PORT_MIN`
-- `PORT_MAX`
-- `MTLS_CERT_FILE`
-- `MTLS_KEY_FILE`
-- `MTLS_CA_FILE`
 
 See `configs/examples/node-agent.env.example` for a complete example.
 
 ### Migration
 
-Legacy `ZEROTRACEZERO_*` and `ZEROTRACEZERO_AGENT_*` env names are no longer supported.
-
-| Old name | New name |
-| --- | --- |
-| `ZEROTRACEZERO_CONTROL_PLANE_URL` | `API_URL` |
-| `ZEROTRACEZERO_AGENT_CONTROL_PLANE_URL` | `API_URL` |
-| `ZEROTRACEZERO_NODE_TOKEN` | `NODE_TOKEN` |
-| `ZEROTRACEZERO_AGENT_TOKEN` | `NODE_TOKEN` |
-| `ZEROTRACEZERO_AGENT_NODE_ID` | `NODE_ID` |
-| `ZEROTRACEZERO_NODE_NAME` | `NODE_NAME` |
-| `ZEROTRACEZERO_AGENT_NODE_NAME` | `NODE_NAME` |
-| `ZEROTRACEZERO_NODE_PUBLIC_ADDRESS` | `PUBLIC_ADDRESS` |
-| `ZEROTRACEZERO_AGENT_PUBLIC_ADDRESS` | `PUBLIC_ADDRESS` |
-| `ZEROTRACEZERO_AGENT_STATE_DIR` | `STATE_DIR` |
-| `ZEROTRACEZERO_AGENT_SYNC_INTERVAL` | `SYNC_INTERVAL` |
-| `ZEROTRACEZERO_AGENT_HTTP_TIMEOUT` | `HTTP_TIMEOUT` |
-| `ZEROTRACEZERO_AGENT_PORT_MIN` | `PORT_MIN` |
-| `ZEROTRACEZERO_AGENT_PORT_MAX` | `PORT_MAX` |
-| `ZEROTRACEZERO_AGENT_MTLS_CERT_FILE` | `MTLS_CERT_FILE` |
-| `ZEROTRACEZERO_AGENT_MTLS_KEY_FILE` | `MTLS_KEY_FILE` |
-| `ZEROTRACEZERO_AGENT_MTLS_CA_FILE` | `MTLS_CA_FILE` |
+Legacy agent env names are no longer used. The node no longer dials the panel directly and instead exposes its own authenticated HTTP API.
+Runtime backend ports are now deterministic internal bindings owned by the node and are no longer configured through environment variables.
 
 ## Development
 
 ```bash
 go test ./...
 docker build --build-arg TARGETARCH=amd64 -t 0trace0-node . && docker run --rm \
-  -e API_URL=https://api.example.com \
-  -e NODE_TOKEN=replace-me \
+  -e NODE_HTTP_ADDR=:8090 \
+  -e NODE_API_TOKEN=replace-me \
   -v zerotracezero-node:/var/lib/zerotracezero-node \
   0trace0-node
 ```
@@ -74,8 +47,9 @@ The Docker image is currently supported only on `linux/amd64`. Builds for `arm64
 
 ```bash
 docker build --build-arg TARGETARCH=amd64 -t 0trace0-node . && docker run --rm \
-  -e API_URL=https://api.example.com \
-  -e NODE_TOKEN=replace-me \
+  -e NODE_HTTP_ADDR=:8090 \
+  -e NODE_API_TOKEN=replace-me \
+  -p 8090:8090 \
   -v zerotracezero-node:/var/lib/zerotracezero-node \
   0trace0-node
 ```

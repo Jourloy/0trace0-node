@@ -566,3 +566,38 @@ type AgentTelemetryRequest struct {
 	NodeID string         `json:"nodeId"`
 	Events []SessionEvent `json:"events"`
 }
+
+type NodeInfoResponse struct {
+	InstanceID    string   `json:"instanceId"`
+	Name          string   `json:"name"`
+	Version       string   `json:"version"`
+	PublicAddress string   `json:"publicAddress"`
+	Capabilities  []string `json:"capabilities"`
+}
+
+type NodeRuntimeResponse struct {
+	Status           string                          `json:"status"`
+	ObservedRevision string                          `json:"observedRevision"`
+	AssignedPorts    map[string]int                  `json:"assignedPorts"`
+	Health           map[string]any                  `json:"health,omitempty"`
+	MTProxyInbounds  map[string]MTProxyInboundHealth `json:"mtproxyInbounds,omitempty"`
+	LastAppliedAt    *time.Time                      `json:"lastAppliedAt,omitempty"`
+	LastError        string                          `json:"lastError,omitempty"`
+}
+
+type NodeDesiredStateRequest struct {
+	NodeID          string                       `json:"nodeId"`
+	DesiredRevision string                       `json:"desiredRevision"`
+	GeneratedAt     time.Time                    `json:"generatedAt"`
+	Resources       map[string][]ManagedResource `json:"resources"`
+}
+
+type NodeEventRecord struct {
+	Cursor string       `json:"cursor"`
+	Event  SessionEvent `json:"event"`
+}
+
+type NodeEventsResponse struct {
+	Items      []NodeEventRecord `json:"items"`
+	NextCursor string            `json:"nextCursor"`
+}

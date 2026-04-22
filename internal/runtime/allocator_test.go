@@ -6,29 +6,55 @@ import (
 	"github.com/jourloy/0trace0-node/internal/controlapi"
 )
 
-func TestAssignPortsKeepsExistingAndAllocatesMissing(t *testing.T) {
+func TestAssignPortsIsDeterministic(t *testing.T) {
 	protocol := "trojan"
 	bundle := controlapi.ConfigBundle{
 		NodeID: "node-1",
 		Resources: map[string][]controlapi.ManagedResource{
-			"inbound": {
-				{ID: "a", Name: "Trojan", Protocol: &protocol},
-				{ID: "b", Name: "VLESS", Protocol: &protocol},
+			string(controlapi.KindInbound): {
+				{ID: "b", Name: "Inbound B", Protocol: &protocol},
+				{ID: "a", Name: "Inbound A", Protocol: &protocol},
 			},
 		},
 	}
 
-	assigned, err := AssignPorts(bundle, map[string]int{"a": 22222}, 22000, 22999)
+	first, err := AssignPorts(bundle)
 	if err != nil {
 		t.Fatalf("AssignPorts returned error: %v", err)
 	}
-	if assigned["a"] != 22222 {
-		t.Fatalf("expected existing port to be preserved, got %d", assigned["a"])
+	second, err := AssignPorts(bundle)
+	if err != nil {
+		t.Fatalf("AssignPorts returned error on repeat: %v", err)
 	}
-	if assigned["b"] == 0 {
-		t.Fatalf("expected allocated port for second inbound")
+
+	if first["a"] != second["a"] || first["b"] != second["b"] {
+		t.Fatalf("AssignPorts returned unstable ports: first=%v second=%v", first, second)
 	}
-	if assigned["b"] == assigned["a"] {
-		t.Fatalf("expected unique ports")
+	if first["a"] == first["b"] {
+		t.Fatalf("AssignPorts returned duplicate internal ports: %v", first)
+	}
+	if first["a"] < internalInboundPortMin || first["a"] > internalInboundPortMax {
+		t.Fatalf("port for a = %d, want %d-%d", first["a"], internalInboundPortMin, internalInboundPortMax)
+	}
+}
+
+func TestAssignStatsPortIsDeterministic(t *testing.T) {
+	firstUsed := map[int]struct{}{}
+	first, err := AssignStatsPort("node-1:inbound-a", firstUsed)
+	if err != nil {
+		t.Fatalf("AssignStatsPort returned error: %v", err)
+	}
+
+	secondUsed := map[int]struct{}{}
+	second, err := AssignStatsPort("node-1:inbound-a", secondUsed)
+	if err != nil {
+		t.Fatalf("AssignStatsPort returned error on repeat: %v", err)
+	}
+
+	if first != second {
+		t.Fatalf("AssignStatsPort = %d, want deterministic %d", first, second)
+	}
+	if first < internalStatsPortMin || first > internalStatsPortMax {
+		t.Fatalf("stats port = %d, want %d-%d", first, internalStatsPortMin, internalStatsPortMax)
 	}
 }

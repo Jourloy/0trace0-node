@@ -26,8 +26,6 @@ const (
 
 type Config struct {
 	StateDir string
-	PortMin  int
-	PortMax  int
 }
 
 type Result struct {
@@ -35,6 +33,17 @@ type Result struct {
 	AssignedPorts   map[string]int
 	Warnings        []string
 	Health          map[string]any
+	MTProxyInbounds map[string]controlapi.MTProxyInboundHealth
+}
+
+type ProcessSnapshot struct {
+	Running   bool
+	Desired   bool
+	LastError string
+}
+
+type Snapshot struct {
+	Processes       map[string]ProcessSnapshot
 	MTProxyInbounds map[string]controlapi.MTProxyInboundHealth
 }
 
@@ -170,6 +179,25 @@ func (s *Supervisor) ApplyBundle(bundle *controlapi.ConfigBundle, previousPorts 
 	return result, nil
 }
 
+func (s *Supervisor) Snapshot() Snapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	processes := make(map[string]ProcessSnapshot, len(s.process))
+	for key, value := range s.process {
+		processes[key] = ProcessSnapshot{
+			Running:   value.running,
+			Desired:   value.desired,
+			LastError: value.lastError,
+		}
+	}
+
+	return Snapshot{
+		Processes:       processes,
+		MTProxyInbounds: s.copyMTProxyHealthLocked(),
+	}
+}
+
 func renderBundle(bundle *controlapi.ConfigBundle, previousPorts map[string]int, cfg Config) (Result, string, string, string, error) {
 	result := Result{
 		AssignedPorts: map[string]int{},
@@ -177,7 +205,8 @@ func renderBundle(bundle *controlapi.ConfigBundle, previousPorts map[string]int,
 		Health:        map[string]any{},
 	}
 
-	assigned, err := runtime.AssignPorts(*bundle, previousPorts, cfg.PortMin, cfg.PortMax)
+	_ = previousPorts
+	assigned, err := runtime.AssignPorts(*bundle)
 	if err != nil {
 		return result, "", "", "", err
 	}

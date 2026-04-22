@@ -33,9 +33,6 @@ func RenderXray(bundle controlapi.ConfigBundle, assignedPorts map[string]int) ([
 			continue
 		}
 		port := assignedPorts[inbound.ID]
-		if inbound.Port != nil && *inbound.Port > 0 {
-			port = *inbound.Port
-		}
 		stream := cloneMap(objectFromMap(inbound.Spec, "streamSettings"))
 		if status := inboundCertificateStatus(inbound, certificates); status != "" {
 			warnings = append(warnings, fmt.Sprintf("xray skipped inbound %s: %s", inbound.Name, status))
@@ -189,9 +186,6 @@ func RenderSingbox(bundle controlapi.ConfigBundle, assignedPorts map[string]int)
 	for _, inbound := range bundle.Resources[string(controlapi.KindInbound)] {
 		protocol := strings.ToLower(valueOrEmpty(inbound.Protocol))
 		port := assignedPorts[inbound.ID]
-		if inbound.Port != nil && *inbound.Port > 0 {
-			port = *inbound.Port
-		}
 		switch protocol {
 		case "hysteria2":
 			if status := inboundCertificateStatus(inbound, certificates); status != "" {
