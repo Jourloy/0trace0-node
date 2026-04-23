@@ -22,6 +22,9 @@ const (
 	xrayBinaryPath    = "/usr/local/bin/xray"
 	singboxBinaryPath = "/usr/local/bin/sing-box"
 	mtproxyBinaryPath = "/usr/local/bin/mtproto-proxy"
+
+	processGracefulStopTimeout = 2 * time.Second
+	processForcedStopTimeout   = 2 * time.Second
 )
 
 type Config struct {
@@ -65,6 +68,7 @@ type managedProcess struct {
 	configPath string
 	logPath    string
 	cmd        *exec.Cmd
+	exitCh     chan struct{}
 	running    bool
 	desired    bool
 	generation int
@@ -335,15 +339,17 @@ func (s *Supervisor) reconcileProcessLocked(proc *managedProcess, binary string,
 		return false, warnings, err
 	}
 
+	exitCh := make(chan struct{})
 	proc.binary = path
 	proc.args = append([]string{}, args...)
 	proc.cmd = command
+	proc.exitCh = exitCh
 	proc.running = true
 	proc.desired = true
 	proc.lastError = ""
 	proc.generation++
 	generation := proc.generation
-	go s.watchProcess(proc.name, command, logFile, generation)
+	go s.watchProcess(proc.name, command, logFile, generation, exitCh)
 	return true, warnings, nil
 }
 
@@ -352,33 +358,52 @@ func (s *Supervisor) stopProcessLocked(proc *managedProcess) error {
 		return nil
 	}
 	if proc.cmd == nil || proc.cmd.Process == nil {
+		proc.cmd = nil
+		proc.exitCh = nil
 		proc.running = false
 		proc.desired = false
 		return nil
 	}
 	proc.desired = false
-	process := proc.cmd.Process
-	_ = process.Signal(os.Interrupt)
-	time.AfterFunc(2*time.Second, func() {
-		_ = process.Kill()
-	})
-	proc.cmd = nil
-	proc.running = false
+	command := proc.cmd
+	process := command.Process
+	exitCh := proc.exitCh
+	generation := proc.generation
+
+	if err := process.Signal(os.Interrupt); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	if !waitForExitSignal(exitCh, processGracefulStopTimeout) {
+		if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return err
+		}
+		if !waitForExitSignal(exitCh, processForcedStopTimeout) {
+			return fmt.Errorf("process %s did not exit after SIGINT and SIGKILL", proc.name)
+		}
+	}
+
+	if proc.generation == generation && proc.cmd == command && proc.exitCh == exitCh {
+		proc.cmd = nil
+		proc.exitCh = nil
+		proc.running = false
+	}
 	return nil
 }
 
-func (s *Supervisor) watchProcess(name string, cmd *exec.Cmd, logFile *os.File, generation int) {
+func (s *Supervisor) watchProcess(name string, cmd *exec.Cmd, logFile *os.File, generation int, exitCh chan struct{}) {
 	err := cmd.Wait()
+	close(exitCh)
 	_ = logFile.Close()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	proc := s.process[name]
-	if proc == nil || proc.generation != generation {
+	if proc == nil || proc.generation != generation || proc.cmd != cmd || proc.exitCh != exitCh {
 		return
 	}
 	proc.cmd = nil
+	proc.exitCh = nil
 	proc.running = false
 	if err != nil {
 		proc.lastError = err.Error()
@@ -406,6 +431,18 @@ func (s *Supervisor) watchProcess(name string, cmd *exec.Cmd, logFile *os.File, 
 			s.logger.Error("runtime restart failed", "process", name, "error", restartErr)
 		}
 	})
+}
+
+func waitForExitSignal(exitCh <-chan struct{}, timeout time.Duration) bool {
+	if exitCh == nil {
+		return true
+	}
+	select {
+	case <-exitCh:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 func validateRenderedConfig(binary string, args []string) ([]string, error) {

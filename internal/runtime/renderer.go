@@ -34,6 +34,7 @@ func RenderXray(bundle controlapi.ConfigBundle, assignedPorts map[string]int) ([
 		}
 		port := assignedPorts[inbound.ID]
 		stream := cloneMap(objectFromMap(inbound.Spec, "streamSettings"))
+		stream = mergeXrayInboundRealitySettings(inbound, stream)
 		if status := inboundCertificateStatus(inbound, certificates); status != "" {
 			warnings = append(warnings, fmt.Sprintf("xray skipped inbound %s: %s", inbound.Name, status))
 			continue
@@ -681,6 +682,24 @@ func cloneMap(values map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func mergeXrayInboundRealitySettings(inbound controlapi.ManagedResource, stream map[string]any) map[string]any {
+	if !strings.EqualFold(stringFromMap(stream, "security", ""), "reality") {
+		return stream
+	}
+
+	topLevel := objectFromMap(inbound.Spec, "realitySettings")
+	if len(topLevel) == 0 {
+		return stream
+	}
+
+	merged := cloneMap(topLevel)
+	for key, value := range objectFromMap(stream, "realitySettings") {
+		merged[key] = value
+	}
+	stream["realitySettings"] = merged
+	return stream
 }
 
 func inboundCertificateStatus(inbound controlapi.ManagedResource, certificates []controlapi.ManagedResource) string {
