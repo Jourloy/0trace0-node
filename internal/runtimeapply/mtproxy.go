@@ -144,6 +144,17 @@ func (s *Supervisor) buildMTProxyPlansLocked(bundle controlapi.ConfigBundle, ass
 		return nil, nil, nil
 	}
 
+	settingsByInbound := make(map[string]controlapi.InboundMTProxySettings, len(inbounds))
+	for _, inbound := range inbounds {
+		settings := mtproxySettingsFromSpec(inbound.Spec)
+		proxyTag, err := normalizeMTProxyProxyTag(settings.ProxyTag)
+		if err != nil {
+			return nil, nil, fmt.Errorf("mtproxy inbound %s: %w", inbound.Name, err)
+		}
+		settings.ProxyTag = proxyTag
+		settingsByInbound[inbound.ID] = settings
+	}
+
 	assets, warnings, err := ensureMTProxyAssets(s.cfg.StateDir)
 	if err != nil {
 		return nil, warnings, err
@@ -175,7 +186,7 @@ func (s *Supervisor) buildMTProxyPlansLocked(bundle controlapi.ConfigBundle, ass
 
 	plans := make([]mtproxyProcessPlan, 0, len(inbounds))
 	for _, inbound := range inbounds {
-		settings := mtproxySettingsFromSpec(inbound.Spec)
+		settings := settingsByInbound[inbound.ID]
 		secrets := collectMTProxySecrets(clientsByInbound[inbound.ID])
 		if len(secrets) == 0 {
 			continue
@@ -467,6 +478,17 @@ func normalizeMTProxyStoredSecret(secret string) string {
 	default:
 		return ""
 	}
+}
+
+func normalizeMTProxyProxyTag(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "", nil
+	}
+	if len(value) != 32 || !isMTProxyHex(value) {
+		return "", fmt.Errorf("proxy tag must be 32 hex chars; do not paste a Telegram @username or API token")
+	}
+	return value, nil
 }
 
 func isMTProxyHex(value string) bool {
