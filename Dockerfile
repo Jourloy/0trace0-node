@@ -82,6 +82,8 @@ COPY --from=runtime-binaries /out/share/xray /usr/local/share/xray
 ENV XRAY_LOCATION_ASSET=/usr/local/share/xray
 ENV STATE_DIR=/var/lib/zerotracezero-node
 
+EXPOSE 8090/tcp 18080/tcp 18081/tcp 18082/tcp 18083/tcp 18084/tcp 18085/udp 18086/udp
+
 VOLUME ["/var/lib/zerotracezero-node"]
 
 ENTRYPOINT ["/usr/local/bin/node-agent"]

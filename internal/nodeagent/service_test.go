@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jourloy/0trace0-node/internal/controlapi"
+	"github.com/jourloy/0trace0-node/internal/runtime"
 )
 
 func TestNodeAPIRequiresAuthExceptHealth(t *testing.T) {
@@ -185,6 +186,110 @@ func TestFailedApplyUpdatesRuntimeAndWritesEvent(t *testing.T) {
 	}
 	if eventsResponse.Items[0].Event.EventType != "config_apply_failed" {
 		t.Fatalf("event type = %q, want config_apply_failed", eventsResponse.Items[0].Event.EventType)
+	}
+}
+
+func TestApplyUsesFixedPublicProtocolPorts(t *testing.T) {
+	service := newTestService(t, Config{
+		HTTPAddr: ":0",
+		APIToken: "secret-token",
+		NodeName: "node-test",
+		StateDir: t.TempDir(),
+	})
+	handler := service.Handler()
+
+	trojan := "trojan"
+	mtproxy := "mtproxy"
+	request := controlapi.NodeDesiredStateRequest{
+		NodeID:          "node-1",
+		DesiredRevision: "rev-fixed-ports",
+		Resources: map[string][]controlapi.ManagedResource{
+			string(controlapi.KindInbound): {
+				{
+					ID:        "trojan-1",
+					Kind:      controlapi.KindInbound,
+					Name:      "Trojan",
+					Slug:      "trojan",
+					Protocol:  &trojan,
+					IsEnabled: true,
+					Spec: map[string]any{
+						"serverName": "edge.example.com",
+						"sni":        "edge.example.com",
+						"streamSettings": map[string]any{
+							"security": "reality",
+						},
+						"realitySettings": map[string]any{
+							"privateKey": "XBM0eloc-kUEHh8YTKzlIJAdc-9iB0lKx0xG5lweJFg",
+							"shortIds":   []any{"01234567"},
+							"serverNames": []any{
+								"edge.example.com",
+							},
+							"target": "edge.example.com:443",
+						},
+					},
+				},
+				{
+					ID:        "mtproxy-1",
+					Kind:      controlapi.KindInbound,
+					Name:      "MTProxy",
+					Slug:      "mtproxy",
+					Protocol:  &mtproxy,
+					IsEnabled: true,
+					Spec: map[string]any{
+						"mtproxySettings": map[string]any{
+							"transportMode": "secure",
+							"workers":       2,
+						},
+					},
+				},
+			},
+			string(controlapi.KindClient): {
+				{
+					ID:        "trojan-client",
+					Kind:      controlapi.KindClient,
+					Name:      "Trojan Client",
+					IsEnabled: true,
+					Spec: map[string]any{
+						"inboundId": "trojan-1",
+						"password":  "secret",
+					},
+				},
+				{
+					ID:        "mtproxy-client",
+					Kind:      controlapi.KindClient,
+					Name:      "MTProxy Client",
+					IsEnabled: true,
+					Spec: map[string]any{
+						"inboundId": "mtproxy-1",
+						"secret":    "0123456789abcdef0123456789abcdef",
+					},
+				},
+			},
+		},
+	}
+
+	recorder := putDesiredState(t, handler, service.cfg.APIToken, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("desired-state status = %d, want %d, body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	runtimeReq := httptest.NewRequest(http.MethodGet, "/api/v1/node/runtime", nil)
+	runtimeReq.Header.Set("Authorization", "Bearer "+service.cfg.APIToken)
+	runtimeRec := httptest.NewRecorder()
+	handler.ServeHTTP(runtimeRec, runtimeReq)
+	if runtimeRec.Code != http.StatusOK {
+		t.Fatalf("runtime status = %d, want %d", runtimeRec.Code, http.StatusOK)
+	}
+
+	var runtimeResponse controlapi.NodeRuntimeResponse
+	if err := json.NewDecoder(runtimeRec.Body).Decode(&runtimeResponse); err != nil {
+		t.Fatalf("decode runtime response: %v", err)
+	}
+	if runtimeResponse.AssignedPorts["trojan-1"] != runtime.TrojanPublicPort {
+		t.Fatalf("trojan port = %d, want %d", runtimeResponse.AssignedPorts["trojan-1"], runtime.TrojanPublicPort)
+	}
+	if runtimeResponse.AssignedPorts["mtproxy-1"] != runtime.MTProxyPublicPort {
+		t.Fatalf("mtproxy port = %d, want %d", runtimeResponse.AssignedPorts["mtproxy-1"], runtime.MTProxyPublicPort)
 	}
 }
 

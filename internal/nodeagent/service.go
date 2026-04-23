@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,8 +53,6 @@ type Service struct {
 
 	mu    sync.Mutex
 	state stateFile
-
-	edgePlan edgeRoutePlan
 }
 
 func New(cfg Config, logger *slog.Logger) (*Service, error) {
@@ -96,19 +95,31 @@ func New(cfg Config, logger *slog.Logger) (*Service, error) {
 }
 
 func (s *Service) Run(ctx context.Context) error {
-	server, err := s.startInternalControlAPI(ctx)
+	server := &http.Server{
+		Addr:              s.cfg.HTTPAddr,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: defaultTimeout,
+	}
+	listener, err := net.Listen("tcp", s.cfg.HTTPAddr)
 	if err != nil {
 		return err
 	}
-	_ = server
+	s.logger.Info("0trace0-node control API listening", "addr", s.cfg.HTTPAddr)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.runEdgeIngress(ctx)
+		if serveErr := server.Serve(listener); serveErr != nil && serveErr != http.ErrServerClosed {
+			errCh <- serveErr
+			return
+		}
+		errCh <- nil
 	}()
 
 	select {
 	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
 		return nil
 	case err := <-errCh:
 		return err
@@ -258,12 +269,7 @@ func (s *Service) applyDesiredStateLocked(req controlapi.NodeDesiredStateRequest
 		GeneratedAt: req.GeneratedAt.UTC(),
 		Resources:   req.Resources,
 	}
-	nextPorts, err := runtime.AssignPorts(*bundle)
-	if err != nil {
-		return s.recordApplyFailureLocked(req.DesiredRevision, err)
-	}
-	nextPlan, err := buildEdgeRoutePlan(bundle, nextPorts)
-	if err != nil {
+	if _, err := runtime.AssignPorts(*bundle); err != nil {
 		return s.recordApplyFailureLocked(req.DesiredRevision, err)
 	}
 
@@ -298,7 +304,6 @@ func (s *Service) applyDesiredStateLocked(req controlapi.NodeDesiredStateRequest
 
 	s.state.ObservedRevision = req.DesiredRevision
 	s.state.AssignedPorts = copyAssignedPorts(result.AssignedPorts)
-	s.edgePlan = nextPlan
 	s.state.LastAppliedAt = &now
 	s.state.LastError = ""
 	s.state.Health = copyMap(result.Health)
